@@ -76,6 +76,10 @@ On Android, trip data is written to the app's private storage directory (no perm
 
 GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
 
+## Acknowledgement
+
+Written with help from [zeroshot](https://github.com/covibes/zeroshot) and [claude code](https://github.com/anthropics/claude-code).
+
 ## Contributing
 
 Contributions welcome. Fork the repo, make your changes, and open a pull request.
