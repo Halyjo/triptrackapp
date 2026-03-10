@@ -10,6 +10,7 @@ import json
 import os
 import csv
 import io
+from datetime import datetime
 
 # On Android, Kivy sets App.user_data_dir to app-private storage.
 # On desktop we fall back to the current directory.
@@ -73,6 +74,25 @@ def delete_trip(trip_id):
     path = _get_data_file()
     with open(path, "w", encoding="utf-8") as f:
         json.dump(trips, f, indent=2)
+
+
+def calculate_duration_minutes(start_str, end_str):
+    """Parse HH:MM:SS or HH:MM time strings, return duration in minutes as float.
+    Handles overnight trips (end < start) by adding 24 hours."""
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            start = datetime.strptime(start_str, fmt)
+            end = datetime.strptime(end_str, fmt)
+            break
+        except ValueError:
+            continue
+    else:
+        raise ValueError(f"Cannot parse times: {start_str!r}, {end_str!r}")
+    delta = end - start
+    minutes = delta.total_seconds() / 60
+    if minutes < 0:
+        minutes += 24 * 60
+    return minutes
 
 
 def export_csv_string():

@@ -120,6 +120,15 @@ def test_export_csv_field_values():
     assert "sunny" in lines[1]
 
 
+# --- calculate_duration_minutes ---
+
+
+def test_calculate_duration_minutes():
+    assert storage.calculate_duration_minutes("08:00:00", "08:30:00") == 30.0
+    assert storage.calculate_duration_minutes("09:00:00", "10:15:00") == 75.0
+    assert storage.calculate_duration_minutes("23:00:00", "00:30:00") == 90.0
+
+
 # --- full round-trip ---
 
 

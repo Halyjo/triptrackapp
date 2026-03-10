@@ -22,6 +22,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
 from kivy.metrics import sp, dp
 
 import storage
@@ -205,6 +206,131 @@ class HomeScreen(Screen):
         self._refresh_last_trip()
 
 
+# ── EditTripPopup ─────────────────────────────────────────────────────────────
+
+
+class EditTripPopup(Popup):
+    """Pre-filled popup to edit an existing trip's fields."""
+
+    def __init__(self, trip, on_saved, **kw):
+        self._trip = trip
+        self._on_saved = on_saved
+
+        content = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
+
+        def _labeled_row(label_text, widget):
+            row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+            row.add_widget(
+                Label(
+                    text=label_text,
+                    size_hint_x=None,
+                    width=dp(90),
+                    font_size=SM_FONT,
+                    halign="right",
+                    valign="middle",
+                )
+            )
+            row.add_widget(widget)
+            return row
+
+        # Date
+        self._date_input = TextInput(
+            text=trip.get("date", ""), multiline=False, font_size=SM_FONT
+        )
+        content.add_widget(_labeled_row("Date:", self._date_input))
+
+        # Direction toggle buttons
+        dir_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+        dir_row.add_widget(
+            Label(
+                text="Direction:",
+                size_hint_x=None,
+                width=dp(90),
+                font_size=SM_FONT,
+                halign="right",
+                valign="middle",
+            )
+        )
+        self._dir_btns = {}
+        for key, label in DIRECTION_LABELS.items():
+            btn = Button(text=label, font_size=SM_FONT)
+            btn.bind(on_press=lambda _, k=key: self._select_direction(k))
+            self._dir_btns[key] = btn
+            dir_row.add_widget(btn)
+        content.add_widget(dir_row)
+        self._current_direction = trip.get("direction", "to_work")
+        self._highlight_direction(self._current_direction)
+
+        # Start time
+        self._start_input = TextInput(
+            text=trip.get("start_time", ""), multiline=False, font_size=SM_FONT
+        )
+        content.add_widget(_labeled_row("Start:", self._start_input))
+
+        # End time
+        self._end_input = TextInput(
+            text=trip.get("end_time", ""), multiline=False, font_size=SM_FONT
+        )
+        content.add_widget(_labeled_row("End:", self._end_input))
+
+        # Notes
+        self._notes_input = TextInput(
+            text=trip.get("notes", ""), multiline=False, font_size=SM_FONT
+        )
+        content.add_widget(_labeled_row("Notes:", self._notes_input))
+
+        # Save / Cancel buttons
+        btn_row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
+        save_btn = Button(
+            text="Save", background_color=(0.1, 0.6, 0.3, 1), font_size=SM_FONT
+        )
+        cancel_btn = Button(text="Cancel", font_size=SM_FONT)
+        save_btn.bind(on_press=self._save)
+        cancel_btn.bind(on_press=self.dismiss)
+        btn_row.add_widget(save_btn)
+        btn_row.add_widget(cancel_btn)
+        content.add_widget(btn_row)
+
+        super().__init__(
+            title="Edit Trip", content=content, size_hint=(0.95, 0.85), **kw
+        )
+
+    def _select_direction(self, key):
+        self._current_direction = key
+        self._highlight_direction(key)
+
+    def _highlight_direction(self, selected_key):
+        for key, btn in self._dir_btns.items():
+            if key == selected_key:
+                btn.background_color = (0.1, 0.6, 0.3, 1)
+            else:
+                btn.background_color = (0.3, 0.3, 0.3, 1)
+
+    def _save(self, *_):
+        start = self._start_input.text.strip()
+        end = self._end_input.text.strip()
+        try:
+            duration = storage.calculate_duration_minutes(start, end)
+        except Exception as exc:
+            err = Popup(
+                title="Invalid time",
+                content=Label(text=f"Cannot parse times:\n{exc}\n\nUse HH:MM or HH:MM:SS"),
+                size_hint=(0.8, 0.4),
+            )
+            err.open()
+            return
+        updated = dict(self._trip)
+        updated["date"] = self._date_input.text.strip()
+        updated["direction"] = self._current_direction
+        updated["start_time"] = start
+        updated["end_time"] = end
+        updated["duration_minutes"] = round(duration, 1)
+        updated["notes"] = self._notes_input.text.strip()
+        storage.save_trip(updated)
+        self._on_saved(updated)
+        self.dismiss()
+
+
 # ── TripsScreen ───────────────────────────────────────────────────────────────
 
 
@@ -254,6 +380,15 @@ class TripsScreen(Screen):
                 f"{trip.get('duration_minutes', '?')} min"
             )
             row.add_widget(_make_label(info, font_size=SM_FONT))
+            edit_btn = Button(
+                text="Edit",
+                size_hint_x=None,
+                width=dp(60),
+                font_size=SM_FONT,
+                background_color=(0.1, 0.4, 0.8, 1),
+            )
+            edit_btn.bind(on_press=lambda _, t=trip: self._open_edit(t))
+            row.add_widget(edit_btn)
             del_btn = Button(
                 text="Del",
                 size_hint_x=None,
@@ -264,6 +399,10 @@ class TripsScreen(Screen):
             del_btn.bind(on_press=lambda _, tid=trip["id"]: self._confirm_delete(tid))
             row.add_widget(del_btn)
             self._list.add_widget(row)
+
+    def _open_edit(self, trip):
+        popup = EditTripPopup(trip=trip, on_saved=lambda _: self._reload())
+        popup.open()
 
     def _confirm_delete(self, trip_id):
         content = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(10))
